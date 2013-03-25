@@ -1,0 +1,3 @@
+用于从kafka中拉取数据至hdfs中
+TODO:
+    1、借鉴flume-ng的FileChannel,保障数据安全
