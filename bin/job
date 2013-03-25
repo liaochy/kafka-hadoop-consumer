@@ -1,0 +1,150 @@
+#!/usr/bin/env /bin/bash
+
+function usage {
+  echo "usage: job command [args...]"
+  echo "commands include: "
+  echo "  job [init]      Start a etl job , init argument is used to force consumer fetch data from the"
+  echo " 				  largest offset ignoring existing offset , or to initialize a first etlJob"
+  echo "  classpath       Dump the classpath used by the java executables"
+  exit -1
+}
+
+CMDPATH=`dirname $0`
+
+pushd $CMDPATH >/dev/null
+CMDPATH=`pwd`
+popd >/dev/null
+
+if [ -e "$CMDPATH"/job-config.sh ]; then
+  . "$CMDPATH"/job-config.sh
+fi
+
+# name of path
+CMDPATH=`dirname $CMDPATH`
+
+job=$CMDPATH/bin/job
+
+JOBPID=${JOB_PID_DIR:="/tmp"}/job.pid
+
+CMD="$1"
+if [ -z "$CMD" ]; then
+    usage
+fi
+
+cygwin=false
+pathsep=":"
+case "`uname`" in
+    CYGWIN*)
+        cygwin=true
+        pathsep=";"
+        ;;
+esac
+
+function append_jars_onto_classpath() {
+    local JARS
+    JARS=`find $1/*.jar 2> /dev/null || true`
+    for i in $JARS; do
+        if [ -n "$CLASSPATH" ]; then
+            CLASSPATH=${CLASSPATH}${pathsep}${i}
+        else
+            CLASSPATH=${i}
+        fi
+    done
+}
+
+# name of script
+BINPATH=`dirname $0`
+
+if [ -f "${BINPATH}/job-env.sh" ]; then
+    source "$BINPATH/job-env.sh"
+fi
+
+if [ -z "$JOB_HOME" ]; then
+    export JOB_HOME="$CMDPATH"
+fi
+
+JOPTS="$JOPTS -Djob.log.dir=${JOB_LOG_DIR:-${JOB_HOME}/logs} "
+JOPTS="$JOPTS -Djob.log.file=${JOB_LOGFILE:-job.log} "
+
+if [ "$cygwin" == false ] ; then
+  CLASSPATH="$JOB_CONF_DIR"
+
+  if [ -n "$JOB_CLASSPATH" ]; then
+      CLASSPATH="${CLASSPATH}:${JOB_CLASSPATH}"
+  fi
+
+  append_jars_onto_classpath "$CMDPATH/lib"
+  append_jars_onto_classpath "$CMDPATH/libtest"
+
+  CLASSPATH="${CLASSPATH}:$JAVA_HOME/lib/tools.jar"
+
+  CLASSPATH="$CLASSPATH:$CMDPATH/build/classes"
+  append_jars_onto_classpath "$CMDPATH/build"
+  append_jars_onto_classpath "${JOB_HOME}"
+
+else
+  # windows with cygwin
+  CLASSPATH="$JAVA_HOME/lib/tools.jar"
+
+  append_jars_onto_classpath "$CMDPATH/lib"
+  append_jars_onto_classpath "$CMDPATH/libtest"
+
+fi
+
+export CLASSPATH
+
+# setup 'java.library.path' for native-hadoop code if necessary
+JAVA_LIBRARY_PATH=''
+if [ -d "${HADOOP_HOME}/build/native" -o -d "${HADOOP_HOME}/lib/native" ]; then
+  JAVA_PLATFORM=`CLASSPATH=${CLASSPATH} java -Xmx32m org.apache.hadoop.util.PlatformName | sed -e "s/ /_/g"`
+  
+  if [ -d "$HADOOP_HOME/build/native" ]; then
+    JAVA_LIBRARY_PATH=${HADOOP_HOME}/build/native/${JAVA_PLATFORM}/lib
+  fi
+  
+  if [ -d "${HADOOP_HOME}/lib/native" ]; then
+    if [ "x$JAVA_LIBRARY_PATH" != "x" ]; then
+      JAVA_LIBRARY_PATH=${JAVA_LIBRARY_PATH}:${HADOOP_HOME}/lib/native/${JAVA_PLATFORM}
+    else
+      JAVA_LIBRARY_PATH=${HADOOP_HOME}/lib/native/${JAVA_PLATFORM}
+    fi
+  fi
+fi
+
+# cygwin path translation
+if $cygwin; then
+  JAVA_LIBRARY_PATH=`cygpath -p "$JAVA_LIBRARY_PATH"`
+fi
+
+JOPTS="$JOPTS -Djava.library.path=$CMDPATH/lib:$LD_LIBRARY_PATH:$JAVA_LIBRARY_PATH"
+
+shift
+
+WATCHDOG_OPTS="-Dpid=$$ -Dpidfile="
+WATCHDOG_CLASS=com.sohu.cyril.watchdog.JobWatchdog
+
+JOB_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=$JOBPID $WATCHDOG_CLASS"
+
+if [ -n "$JOB_VERBOSE" ]; then
+    if [ -n "$JOB_VERBOSE_JAVA" ]; then
+        JOPTS="$JOPTS -verbose "
+    fi
+    echo "$CLASSPATH"
+    set -x
+fi
+
+if [ "$CMD" = "-h" ] ; then
+  usage
+elif [ "$CMD" = "job" ] ; then
+	 # only allow one job
+  if [ -f $JOBPID ] ; then
+    PID=`cat $JOBPID`
+    echo "job already running, pid=$PID"
+    exit -1
+  fi
+  exec $JOB_WATCHDOG java $JOPTS $UOPTS com.sohu.cyril.EtlJob "$@"
+elif [ "$CMD" = "classpath" ];  then
+  echo $CLASSPATH
+else
+  usage
+fi

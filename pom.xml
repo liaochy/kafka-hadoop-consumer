@@ -1,0 +1,133 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.sohu.dc</groupId>
+	<artifactId>kafka-hadoop-consumer</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<description>kafka读取数据至hdfs中</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>log4j</groupId>
+			<artifactId>log4j</artifactId>
+			<version>1.2.17</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-log4j12</artifactId>
+			<version>1.7.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>commons-lang</groupId>
+			<artifactId>commons-lang</artifactId>
+			<version>2.6</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>1.3.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+			<version>1.6</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.hadoop</groupId>
+			<artifactId>hadoop-core</artifactId>
+			<version>0.20.203.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>kafka</groupId>
+			<artifactId>kafka</artifactId>
+			<version>0.7.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.github.sgroschupf</groupId>
+			<artifactId>zkclient</artifactId>
+			<version>0.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.zookeeper</groupId>
+			<artifactId>zookeeper</artifactId>
+			<version>3.3.4</version>
+		</dependency>
+
+		<dependency>
+			<groupId>hadoop-lzo</groupId>
+			<artifactId>hadoop-lzo</artifactId>
+			<version>0.4.8</version>
+		</dependency>
+	</dependencies>
+
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>2.2</version>
+				<executions>
+					<execution>
+						<id>assemble</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+						<inherited>false</inherited>
+						<configuration>
+							<descriptors>
+								<descriptor>src/main/assembly/dist-bin.xml</descriptor>
+							</descriptors>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<artifactId>maven-install-plugin</artifactId>
+				<version>2.3.1</version>
+				<inherited>false</inherited>
+				<executions>
+					<execution>
+						<id>install-lzo</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+						<configuration>
+							<groupId>hadoop-lzo</groupId>
+							<artifactId>hadoop-lzo</artifactId>
+							<version>0.4.8</version>
+							<packaging>jar</packaging>
+							<file>${basedir}/lib/hadoop-lzo-0.4.8.jar</file>
+							<pomFile>${basedir}/lib/hadoop-lzo-0.4.8.xml</pomFile>
+						</configuration>
+					</execution>
+					<execution>
+						<id>install-kafka</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>install-file</goal>
+						</goals>
+						<configuration>
+							<groupId>kafka</groupId>
+							<artifactId>kafka</artifactId>
+							<version>0.7.2</version>
+							<packaging>jar</packaging>
+							<file>${basedir}/lib/kafka-0.7.2.jar</file>
+							<pomFile>${basedir}/lib/kafka-0.7.2.xml</pomFile>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>
