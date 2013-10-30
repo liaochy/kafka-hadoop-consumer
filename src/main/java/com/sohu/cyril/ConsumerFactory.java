@@ -33,14 +33,17 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 	private final List<RotateListener> listeners;
 	private final PropertiesLoader loader;
 	private final ExecutorService executor;
-	
+	private boolean restOffset;
+
 	private final Sleeper sleeper;
 
-	public ConsumerFactory(ExecutorService executor,EtlZkClient zkClient, List<RotateListener> listeners,
+	public ConsumerFactory(boolean restOffset, ExecutorService executor,
+			EtlZkClient zkClient, List<RotateListener> listeners,
 			PropertiesLoader loader) {
+		this.restOffset = restOffset;
 		this.executor = executor;
 		this.zkClient = zkClient;
-		this.listeners = listeners ;
+		this.listeners = listeners;
 		this.loader = loader;
 		int msgInterval = JobConfiguration.create().getInt(
 				"job.server.interval", 3 * 1000);
@@ -48,14 +51,19 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 	}
 
 	private Properties createConsumerProperties(String topic) {
-		boolean isOffsetExists = zkClient.isOffsetExists(topic);
+		 boolean isOffsetExists = zkClient.isOffsetExists(topic);
 		Properties props = new Properties();
 		props.put("zk.connect", EtlUtils.getZkHosts(loader));
 		props.put("zk.sessiontimeout.ms",
 				String.valueOf(EtlUtils.getZkSessionTimeout(loader)));
-		if (EtlJob.init || !isOffsetExists)
-			props.put("autooffset.reset", "largest");
-		props.put("autocommit.enable", "true");
+//		if (restOffset || !isOffsetExists) {
+//			props.put("autooffset.reset", "largest");
+//			restOffset = false;
+//		}
+		//每次都使用最大的id
+		props.put("autooffset.reset", "largest");
+		props.put("autocommit.enable", "false");
+//		props.put("autocommit.interval.ms", loader.getProperty("autocommit.interval.ms"));
 		props.put("socket.buffersize",
 				loader.getProperty("kafka.client.buffer.size"));
 		props.put("fetch.size", loader.getProperty("kafka.client.buffer.size"));
@@ -63,7 +71,7 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		return props;
 	}
 
-	public MessageConsumer createConsumer(String topic) throws IOException  {
+	public MessageConsumer createConsumer(String topic) throws IOException {
 		Properties props = createConsumerProperties(topic);
 		ConsumerConfig consumerConfig = new ConsumerConfig(props);
 		ConsumerConnector consumerConnector = Consumer

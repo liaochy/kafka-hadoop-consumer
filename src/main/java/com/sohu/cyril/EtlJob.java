@@ -22,15 +22,10 @@ import com.sohu.cyril.tools.Threads;
 
 public class EtlJob {
 
-	public static boolean init = false;
-
 	public static final Logger log = Logger.getLogger(EtlJob.class);
 
 	public static void main(String[] args) throws IOException {
 		PropertiesLoader loader = new PropertiesLoader("etl.properties");
-		if (Arrays.asList(args).contains("init")) {
-			init = true;
-		}
 
 		FileSystem fs = FileSystem.get(JobConfiguration.create());
 		Path execBasePath = new Path(EtlUtils.getDestinationPath(loader));
@@ -66,10 +61,14 @@ public class EtlJob {
 		listeners.add(new TimeBasedRotateListener(loader));
 		listeners.add(new BlockBasedRotateListener(loader));
 
+		boolean restOffset = false;
+		if (Arrays.asList(args).contains("init")) {
+			restOffset = true;
+		}
 		ExecutorService executor = Executors.newFixedThreadPool(topicList
 				.size());
-		ConsumerFactory factory = new ConsumerFactory(executor, zkClient,
-				listeners, loader);
+		ConsumerFactory factory = new ConsumerFactory(restOffset, executor,
+				zkClient, listeners, loader);
 		for (String valid : topicList) {
 			MessageConsumer consumer = factory.createConsumer(valid);
 			consumer.addObserver(factory);
