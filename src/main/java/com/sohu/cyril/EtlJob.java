@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -16,18 +18,14 @@ import com.sohu.cyril.listener.TimeBasedRotateListener;
 import com.sohu.cyril.tools.EtlUtils;
 import com.sohu.cyril.tools.EtlZkClient;
 import com.sohu.cyril.tools.PropertiesLoader;
+import com.sohu.cyril.tools.Threads;
 
 public class EtlJob {
-
-	public static boolean init = false;
 
 	public static final Logger log = Logger.getLogger(EtlJob.class);
 
 	public static void main(String[] args) throws IOException {
 		PropertiesLoader loader = new PropertiesLoader("etl.properties");
-		if (Arrays.asList(args).contains("init")) {
-			init = true;
-		}
 
 		FileSystem fs = FileSystem.get(JobConfiguration.create());
 		Path execBasePath = new Path(EtlUtils.getDestinationPath(loader));
@@ -63,15 +61,19 @@ public class EtlJob {
 		listeners.add(new TimeBasedRotateListener(loader));
 		listeners.add(new BlockBasedRotateListener(loader));
 
-		for (String valid : topicList) {
-			TopicConsumer consumer = new TopicConsumer(valid,
-					zkClient.isOffsetExists(valid), listeners, loader);
-			Thread t = new Thread(consumer);
-			t.setName("consumer " + valid);
-			t.start();
-			ShutdownHook.install(JobConfiguration.create(),
-					FileSystem.get(JobConfiguration.create()), consumer, t);
+		boolean restOffset = false;
+		if (Arrays.asList(args).contains("init")) {
+			restOffset = true;
 		}
-
+		ExecutorService executor = Executors.newFixedThreadPool(topicList
+				.size());
+		ConsumerFactory factory = new ConsumerFactory(restOffset, executor,
+				zkClient, listeners, loader);
+		for (String valid : topicList) {
+			MessageConsumer consumer = factory.createConsumer(valid);
+			consumer.addObserver(factory);
+			executor.submit(consumer);
+		}
+		Threads.setDaemonThreadRunning(new Thread(factory), "Consumner-Monitor");
 	}
 }

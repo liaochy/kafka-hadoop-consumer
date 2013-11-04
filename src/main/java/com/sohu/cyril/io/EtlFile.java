@@ -11,7 +11,7 @@ import org.apache.hadoop.fs.Path;
 
 import com.sohu.cyril.JobConfiguration;
 import com.sohu.cyril.RotateListener;
-import com.sohu.cyril.TopicConsumer;
+import com.sohu.cyril.ConsumerFactory;
 import com.sohu.cyril.tools.EtlUtils;
 import com.sohu.cyril.tools.PropertiesLoader;
 
@@ -37,13 +37,13 @@ public class EtlFile {
 		this.listeners = listeners;
 		conf = JobConfiguration.create();
 		this.fs = FileSystem.get(JobConfiguration.create());
+		String fileName = EtlUtils.generateFileName(loader, topic);
 		if (this.hdfsFile == null) {
-			String fileName = EtlUtils.generateFileName(loader, topic);
 			this.hdfsFile = new HdfsFile(fs, new Path(fileName), conf);
 		}
 	}
 
-	public boolean write(Message message) throws IOException  {
+	public boolean write(Message message) throws IOException {
 		if (this.hdfsFile == null) {
 			String fileName = EtlUtils.generateFileName(loader, topic);
 			this.hdfsFile = new HdfsFile(fs, new Path(fileName), conf);
@@ -62,10 +62,10 @@ public class EtlFile {
 
 	public void shutdown() {
 		try {
-			TopicConsumer.logger.info("closing hdfsFile");
+			ConsumerFactory.logger.info("closing hdfsFile");
 			hdfsFile.close();
 		} catch (IOException e) {
-			TopicConsumer.logger.error("error closing hdfs file ...", e);
+			ConsumerFactory.logger.error("error closing hdfs file ...", e);
 		}
 	}
 }
