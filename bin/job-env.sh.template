@@ -1,2 +1,2 @@
 export JOPTS="-server -Xmx1024m"
-export HADOOP_HOME="${HADOOP_HOME:-/usr/local/goldmine/hadoop/default}"
+export HADOOP_HOME="${HADOOP_HOME:-/usr/lib/hadoop}"
