@@ -6,6 +6,7 @@ public class JobConfiguration extends Configuration {
 
 	public static JobConfiguration addJobResources(JobConfiguration conf) {
 		conf.addResource("job-default.xml");
+		conf.addResource("hdfs-site.xml");
 		conf.addResource("job-site.xml");
 		return conf;
 	}
