@@ -1,9 +1,9 @@
-<?xml version="1.0"?>
-<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<?xml version="1.0" encoding="UTF-8"?>
+
 <configuration>
 	<property>
-		<name>fs.default.name</name>
-		<value>hdfs://goldmine.namenode65:9000</value>
+		<name>fs.defaultFS</name>
+		<value>hdfs://nameservice1</value>
 	</property>
 
 	<property>
@@ -25,8 +25,7 @@
 
 	<property>
 		<name>io.compression.codecs</name>
-		<value>org.apache.hadoop.io.compress.DefaultCodec,org.apache.hadoop.io.compress.GzipCodec,com.hadoop.compression.lzo.LzoCodec
-		</value>
+		<value>org.apache.hadoop.io.compress.DefaultCodec,org.apache.hadoop.io.compress.GzipCodec,org.apache.hadoop.io.compress.SnappyCodec</value>
 	</property>
 
 	<property>
@@ -36,8 +35,7 @@
 
 	<property>
 		<name>hdfs.output.compression.codec</name>
-		<!-- <value>org.apache.hadoop.io.compress.GzipCodec</value> -->
-		<value>com.hadoop.compression.lzo.LzoCodec</value>
+		<value>org.apache.hadoop.io.compress.SnappyCodec</value>
 	</property>
 
 </configuration>
