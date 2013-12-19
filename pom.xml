@@ -53,19 +53,13 @@
 		<dependency>
 			<groupId>kafka</groupId>
 			<artifactId>kafka</artifactId>
-			<version>0.7.2</version>
+			<version>0.7.1</version>
 		</dependency>
 
 		<dependency>
-			<groupId>com.github.sgroschupf</groupId>
+			<groupId>com.101tec</groupId>
 			<artifactId>zkclient</artifactId>
-			<version>0.1</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.apache.zookeeper</groupId>
-			<artifactId>zookeeper</artifactId>
-			<version>3.3.4</version>
+			<version>0.4</version>
 		</dependency>
 
 	</dependencies>
@@ -122,27 +116,13 @@
 					</execution>
 				</executions>
 			</plugin>
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-install-plugin</artifactId>
 				<version>2.5</version>
 				<inherited>false</inherited>
 				<executions>
-					<execution>
-						<id>install-lzo</id>
-						<phase>validate</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<groupId>hadoop-lzo</groupId>
-							<artifactId>hadoop-lzo</artifactId>
-							<version>0.4.8</version>
-							<packaging>jar</packaging>
-							<file>${basedir}/lib/hadoop-lzo-0.4.8.jar</file>
-							<pomFile>${basedir}/lib/hadoop-lzo-0.4.8.xml</pomFile>
-						</configuration>
-					</execution>
 					<execution>
 						<id>install-kafka</id>
 						<phase>validate</phase>
@@ -152,10 +132,10 @@
 						<configuration>
 							<groupId>kafka</groupId>
 							<artifactId>kafka</artifactId>
-							<version>0.7.2</version>
+							<version>0.7.1</version>
 							<packaging>jar</packaging>
-							<file>${basedir}/lib/kafka-0.7.2.jar</file>
-							<pomFile>${basedir}/lib/kafka-0.7.2.xml</pomFile>
+							<file>${basedir}/lib/kafka-0.7.1.jar</file>
+							<pomFile>${basedir}/lib/kafka-0.7.1.xml</pomFile>
 						</configuration>
 					</execution>
 				</executions>

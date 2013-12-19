@@ -67,7 +67,8 @@ public class EtlZkClient {
 				+ "/ids";
 		if (zkClient.exists(DEFAULT_ZOOKEEPER_CONSUMER_PATH + "/" + group)
 				&& zkClient.getChildren(groupPath).size() > 0) {
-			throw new IOException("current consumer group is used by other instance.");
+			throw new IOException(
+					"current consumer group is used by other instance.");
 		}
 		List<String> _topics = zkClient.getChildren(zkTopicPath);
 		for (String topic : _topics) {

@@ -70,7 +70,7 @@ public class EtlJob {
 		ConsumerFactory factory = new ConsumerFactory(restOffset, executor,
 				zkClient, listeners, loader);
 		for (String valid : topicList) {
-			MessageConsumer consumer = factory.createConsumer(valid);
+			MessageConsumer consumer = factory.createConsumer(valid,false);
 			consumer.addObserver(factory);
 			executor.submit(consumer);
 		}

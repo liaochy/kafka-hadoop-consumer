@@ -15,6 +15,8 @@ import kafka.consumer.KafkaStream;
 import kafka.javaapi.consumer.ConsumerConnector;
 import kafka.message.Message;
 
+import org.I0Itec.zkclient.ZkClient;
+import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -33,14 +35,12 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 	private final List<RotateListener> listeners;
 	private final PropertiesLoader loader;
 	private final ExecutorService executor;
-	private boolean restOffset;
 
 	private final Sleeper sleeper;
 
 	public ConsumerFactory(boolean restOffset, ExecutorService executor,
 			EtlZkClient zkClient, List<RotateListener> listeners,
 			PropertiesLoader loader) {
-		this.restOffset = restOffset;
 		this.executor = executor;
 		this.zkClient = zkClient;
 		this.listeners = listeners;
@@ -48,30 +48,45 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		int msgInterval = JobConfiguration.create().getInt(
 				"job.server.interval", 3 * 1000);
 		sleeper = new Sleeper(msgInterval, this);
+		if (restOffset) {
+			tryCleanupZookeeper(loader.getProperty("kafka.groupid"));
+		}
 	}
 
 	private Properties createConsumerProperties(String topic) {
-		 boolean isOffsetExists = zkClient.isOffsetExists(topic);
 		Properties props = new Properties();
-		props.put("zk.connect", EtlUtils.getZkHosts(loader));
-		props.put("zk.sessiontimeout.ms",
-				String.valueOf(EtlUtils.getZkSessionTimeout(loader)));
-//		if (restOffset || !isOffsetExists) {
-//			props.put("autooffset.reset", "largest");
-//			restOffset = false;
-//		}
-		//每次都使用最大的id
-		props.put("autooffset.reset", "largest");
-		props.put("autocommit.enable", "false");
-//		props.put("autocommit.interval.ms", loader.getProperty("autocommit.interval.ms"));
+
+		props.put("groupid", loader.getProperty("kafka.groupid"));
 		props.put("socket.buffersize",
 				loader.getProperty("kafka.client.buffer.size"));
 		props.put("fetch.size", loader.getProperty("kafka.client.buffer.size"));
-		props.put("groupid", loader.getProperty("kafka.groupid"));
+		props.put("auto.commit", "true");
+		props.put("autocommit.interval.ms",
+				loader.getProperty("autocommit.interval.ms"));
+		props.put("zk.connect", EtlUtils.getZkHosts(loader));
+		props.put("zk.sessiontimeout.ms",
+				String.valueOf(EtlUtils.getZkSessionTimeout(loader)));
+		// 从最大位置或者从上次消费位置读取数据
+		props.put("autooffset.reset", "largest");
 		return props;
 	}
 
-	public MessageConsumer createConsumer(String topic) throws IOException {
+	private void tryCleanupZookeeper(String groupId) {
+		try {
+			String dir = "/consumers/" + groupId;
+			logger.info("Cleaning up temporary zookeeper data under " + dir
+					+ ".");
+			ZkClient zk = new ZkClient(EtlUtils.getZkHosts(loader), 30 * 1000,
+					30 * 1000, new BytesPushThroughSerializer());
+			zk.deleteRecursive(dir);
+			zk.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public MessageConsumer createConsumer(String topic, boolean restart)
+			throws IOException {
 		Properties props = createConsumerProperties(topic);
 		ConsumerConfig consumerConfig = new ConsumerConfig(props);
 		ConsumerConnector consumerConnector = Consumer
@@ -100,7 +115,7 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		try {
 			String topic = arg.toString();
 			MessageConsumer consumer;
-			consumer = this.createConsumer(topic);
+			consumer = this.createConsumer(topic, true);
 			consumer.addObserver(this);
 			executor.submit(consumer);
 		} catch (IOException e) {
