@@ -1,6 +1,7 @@
 package com.sohu.cyril.io;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import kafka.message.Message;
@@ -9,9 +10,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+import com.sohu.cyril.ConsumerFactory;
 import com.sohu.cyril.JobConfiguration;
 import com.sohu.cyril.RotateListener;
-import com.sohu.cyril.ConsumerFactory;
 import com.sohu.cyril.tools.EtlUtils;
 import com.sohu.cyril.tools.PropertiesLoader;
 
@@ -43,12 +44,13 @@ public class EtlFile {
 		}
 	}
 
-	public boolean write(Message message) throws IOException {
+	public boolean write(byte[] array) throws IOException {
+
 		if (this.hdfsFile == null) {
 			String fileName = EtlUtils.generateFileName(loader, topic);
 			this.hdfsFile = new HdfsFile(fs, new Path(fileName), conf);
 		}
-		long pos = this.hdfsFile.append(message);
+		long pos = this.hdfsFile.append(array);
 		String fileName = hdfsFile.getPath().getName();
 		for (RotateListener listen : listeners) {
 			if (listen.rotateNeeded(pos, fileName)) {
@@ -58,6 +60,17 @@ public class EtlFile {
 			}
 		}
 		return true;
+
+	}
+
+	public static byte[] toByteArray(ByteBuffer buffer) {
+		byte[] ret = new byte[buffer.remaining()];
+		buffer.get(ret, 0, ret.length);
+		return ret;
+	}
+
+	public boolean write(Message message) throws IOException {
+		return write(toByteArray(message.payload()));
 	}
 
 	public void shutdown() {

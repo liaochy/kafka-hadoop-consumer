@@ -4,9 +4,6 @@ import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-
-import kafka.message.Message;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -34,12 +31,6 @@ public class HdfsFile implements Closeable {
 	}
 
 	static final Log LOG = LogFactory.getLog(HdfsFile.class);
-
-	public static byte[] toByteArray(ByteBuffer buffer) {
-		byte[] ret = new byte[buffer.remaining()];
-		buffer.get(ret, 0, ret.length);
-		return ret;
-	}
 
 	private DataOutputStream outputStream;
 	private Path path;
@@ -88,12 +79,13 @@ public class HdfsFile implements Closeable {
 		return codecClass;
 	}
 
-	public long append(final Message message) throws IOException {
-		this.outputStream.write(toByteArray(message.payload()));
+	public long append(final byte[] array) throws IOException {
+		this.outputStream.write(array);
 		this.outputStream.write(newline);
 		long curPos = this.outputStream.size();
 		return curPos;
 	}
+
 
 	private void checkArgument(FileSystem fs, Path path) {
 		if (fs == null) {

@@ -1,5 +1,9 @@
 package com.sohu.cyril;
 
+import static org.iq80.leveldb.impl.Iq80DBFactory.asString;
+import static org.iq80.leveldb.impl.Iq80DBFactory.bytes;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -7,6 +11,7 @@ import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import kafka.consumer.Consumer;
@@ -19,6 +24,10 @@ import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.iq80.leveldb.DB;
+import org.iq80.leveldb.DBIterator;
+import org.iq80.leveldb.Options;
+import org.iq80.leveldb.impl.Iq80DBFactory;
 
 import com.sohu.cyril.io.EtlFile;
 import com.sohu.cyril.tools.EtlUtils;
@@ -31,18 +40,20 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 	public static Log logger = LogFactory.getLog(ConsumerFactory.class);
 
 	private volatile boolean stopped = false;
-	private final EtlZkClient zkClient;
 	private final List<RotateListener> listeners;
 	private final PropertiesLoader loader;
 	private final ExecutorService executor;
+	private final DB leveldb;
+	private static final String LEVEL_DB_NAME = "leveldb";
+	public static String splitKey = ":";
+	private final ConcurrentHashMap<String, MessageConsumer> consumerMap = new ConcurrentHashMap<String, MessageConsumer>();
 
 	private final Sleeper sleeper;
 
 	public ConsumerFactory(boolean restOffset, ExecutorService executor,
 			EtlZkClient zkClient, List<RotateListener> listeners,
-			PropertiesLoader loader) {
+			PropertiesLoader loader) throws IOException {
 		this.executor = executor;
-		this.zkClient = zkClient;
 		this.listeners = listeners;
 		this.loader = loader;
 		int msgInterval = JobConfiguration.create().getInt(
@@ -51,6 +62,14 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		if (restOffset) {
 			tryCleanupZookeeper(loader.getProperty("kafka.groupid"));
 		}
+
+		Iq80DBFactory factory = new Iq80DBFactory();
+		Options options = new Options();
+		options.createIfMissing(true);
+
+		String dir = System.getProperty("job.log.dir");
+		leveldb = factory.open(new File(dir + File.separator + LEVEL_DB_NAME),
+				options);
 	}
 
 	private Properties createConsumerProperties(String topic) {
@@ -98,7 +117,9 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		List<KafkaStream<Message>> streams = topicMessageStreams.get(topic);
 		KafkaStream<Message> stream = streams.get(0);
 		EtlFile file = new EtlFile(loader, topic, listeners);
-		MessageConsumer consumer = new MessageConsumer(stream, file, topic);
+		MessageConsumer consumer = new MessageConsumer(stream, file, topic,
+				leveldb);
+		consumerMap.put(topic, consumer);
 		return consumer;
 	}
 
@@ -106,6 +127,32 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		for (; !this.stopped;) {
 			long now = System.currentTimeMillis();
 			sleeper.sleep(now);
+			DBIterator iterator = leveldb.iterator();
+			try {
+				for (iterator.seekToFirst(); iterator.hasNext(); iterator
+						.next()) {
+					String key = asString(iterator.peekNext().getKey());
+					byte[] value = iterator.peekNext().getValue();
+					String topic = key.split(splitKey)[0];
+					if (consumerMap.containsKey(topic)) {
+						try {
+							consumerMap.get(topic).consumeDBItem(value);
+							leveldb.delete(bytes(key));
+						} catch (Exception e) {
+							logger.error(
+									"fail to consumer leveldb item ,retry on next time .",
+									e);
+						}
+					}
+				}
+			} finally {
+				// Make sure you close the iterator to avoid resource leaks.
+				try {
+					iterator.close();
+				} catch (IOException e) {
+					logger.error("leveldb iterator close failure .", e);
+				}
+			}
 		}
 		logger.info(Thread.currentThread().getName() + " exiting");
 	}
@@ -114,18 +161,25 @@ public class ConsumerFactory implements Runnable, Stoppable, Observer {
 		logger.info("Observer get changed notify ,args :" + arg);
 		try {
 			String topic = arg.toString();
-			MessageConsumer consumer;
-			consumer = this.createConsumer(topic, true);
+			consumerMap.remove(topic);
+			MessageConsumer consumer = this.createConsumer(topic, true);
 			consumer.addObserver(this);
 			executor.submit(consumer);
 		} catch (IOException e) {
 			logger.error("recreate consumer thread error !", e);
 		}
-
 	}
 
 	public void stop(String msg) {
 		this.stopped = true;
+		try {
+			if (leveldb != null) {
+				leveldb.close();
+				}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		logger.info("STOPPED: " + msg);
 	}
 
