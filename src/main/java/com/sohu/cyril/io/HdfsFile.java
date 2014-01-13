@@ -44,23 +44,36 @@ public class HdfsFile implements Closeable {
 			if (fs.exists(path)) {
 				fs.rename(path, path.suffix("." + System.currentTimeMillis()));
 			}
-			this.outputStream = fs.create(path);
+			if (conf.getBoolean("hdfs.append.support", false) == true) {
+				this.outputStream = fs.append(path);
+			} else {
+				this.outputStream = fs.create(path);
+			}
 		} else {
 			Class<? extends CompressionCodec> codecClass = getOutputCompressorClass(
 					conf, GzipCodec.class);
 			CompressionCodec codec = ReflectionUtils.newInstance(codecClass,
 					conf);
-			Path fileName = path.suffix(codec.getDefaultExtension());
-			if (fs.exists(fileName)) {
+			Path pathToCreate = path.suffix(codec.getDefaultExtension());
+			if (fs.exists(pathToCreate)) {
 				fs.rename(
-						fileName,
+						pathToCreate,
 						path.suffix("." + System.currentTimeMillis()).suffix(
 								codec.getDefaultExtension()));
 			}
-			CompressionOutputStream compressedOut = codec.createOutputStream(fs
-					.create(fileName));
+
+			DataOutputStream originStream;
+			if (conf.getBoolean("hdfs.append.support", false) == true) {
+				originStream = fs.append(pathToCreate);
+			} else {
+				originStream = fs.create(pathToCreate);
+			}
+
+			CompressionOutputStream compressedOut = codec
+					.createOutputStream(originStream);
 			this.outputStream = new FSDataOutputStream(compressedOut, null);
 		}
+
 	}
 
 	public static Class<? extends CompressionCodec> getOutputCompressorClass(
@@ -85,7 +98,6 @@ public class HdfsFile implements Closeable {
 		long curPos = this.outputStream.size();
 		return curPos;
 	}
-
 
 	private void checkArgument(FileSystem fs, Path path) {
 		if (fs == null) {
